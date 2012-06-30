@@ -35,9 +35,14 @@ The cluster merging tool combines the CSV output from multiple tags of the clust
 ##Compilation
 
 With OpenMP:
+<pre>
 g++ cluster.cpp -o cluster -O3 -fopenmp -DUSE_OPENMP
+</pre>
+
 Without OpenMP:
+<pre>
 g++ cluster.cpp -o cluster -O3
+</pre>
 
 ##Running
 Usage is:
@@ -57,5 +62,6 @@ The cluster comparison tool simply needs a list files to merge:
 
 ##Author contact
 Lee Baker, VBI: leecb@vt.edu
+
 David Mittelman, VBI: david.mittelman@vt.edu
 
