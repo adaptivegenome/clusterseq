@@ -29,8 +29,18 @@ The taglist file should consist of one or more lines in the following format:
               [whitespace] [TAG2]
 </pre>
 
-###Cluster comparison tool (merge_clusters.py)
-The cluster merging tool combines the CSV output from multiple tags of the cluster tool so that the frequency of occurrence of barcodes can be compared across multiplexing tags. The files input t
+###Cluster comparison tool (merge_clusters.py, merge_clusters2.py)
+The cluster merging tool combines the CSV output from multiple tags of the cluster tool so that the frequency of occurrence of barcodes can be compared across multiplexing tags. The output is a CSV file listing the frequency of occurrence of a barcode across each of the input files; the first column lists the barcode, and each subsequent column corresponds to an input file.
+
+The tool generates two files:
+
+* merged_clusters.csv contains all barcodes from all files.
+* merged_clusters_filtered.csv contains a subset of the data from merged_clusters.csv to only show barcodes that occur a certain number of times, set by the threshold 'min_count_for_filter' at the top of the script file.
+
+Two versions of this tool are available, with only a minor difference- 
+
+* 'merge_clusters.py' generates a 'merged_clusters_filtered.csv' file which contains lines in which the barcode appeared at least 'min_count_for_filter' times in **each** input file.
+* 'merge_clusters2.py' generates the same file, but with barcodes that appeared at least 'min_count_for_filter' times in **any** input file.
 
 ##Compilation
 
@@ -64,4 +74,3 @@ The cluster comparison tool simply needs a list files to merge:
 Lee Baker, VBI: leecb@vt.edu
 
 David Mittelman, VBI: david.mittelman@vt.edu
-
