@@ -1,9 +1,21 @@
-/*
- * ClusterSeq
- * (c) 2012 Virginia Bioinformatics Institute
+/*********************************************************************
  *
- * Author: Lee Baker, VBI
+ * cluster.cpp
+ * Part of the Clusterseq tool
+ *
+ * Author: Lee C. Baker, VBI
+ * Last modified: 11 July 2012
+ *
  * See https://github.com/adaptivegenome/clusterseq for more information.
+ *
+ *********************************************************************
+ *
+ * This file is released under the Virginia Tech Non-Commercial 
+ * Purpose License. A copy of this license has been provided as
+ * LICENSE.txt.
+ *
+ *********************************************************************//*
+ *
  */
 #include <cassert>
 #include <cstdio>
