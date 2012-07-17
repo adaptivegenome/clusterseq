@@ -36,7 +36,7 @@
 #include <algorithm>
 #include <cstdlib>
 
-#ifdef USE_OPENMP
+#ifdef _OPENMP
 #include <omp.h>
 #endif
 
@@ -383,7 +383,7 @@ cerr << "keep" << endl;
         //step three - perform clustering
         multimap<string, string> cluster_members;
 
-#ifdef USE_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel shared(sorted_sequences,score_threshold,cluster_members) default(none)
         {
             multimap<string, string> cluster_members_local;

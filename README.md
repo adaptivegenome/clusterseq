@@ -46,7 +46,7 @@ Two versions of this tool are available, with only a minor difference-
 
 With OpenMP:
 <pre>
-g++ cluster.cpp -o cluster -O3 -fopenmp -DUSE_OPENMP
+g++ cluster.cpp -o cluster -O3 -fopenmp
 </pre>
 
 Without OpenMP:
