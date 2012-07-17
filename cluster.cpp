@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstring>
 #include <climits>
+#include <ctime>
 #include <string>
 #include <vector>
 #include <map>
@@ -125,19 +126,25 @@ map<string, set<string> > readTagFile(string filename = "lala")
     return tags;
 }
 
+double frand() {
+    return (double) rand() / (double) RAND_MAX;
+}
+
 int main(int cargs, char ** vargs)
 {
-    if(cargs != 5 && cargs != 6 && cargs != 7 && cargs != 8) {
+    srand(time(NULL));
+    if(cargs != 5 && cargs != 6 && cargs != 7 && cargs != 8 && cargs != 9) {
         cerr << "Filters and clusters data in a supplied FASTQ file." << endl;
         cerr << "Data is expected to be in the following format:" << endl;
         cerr << "  [tag][start_marker][data][end_marker]" << endl;
         cerr << endl;
         cerr << "Usage:" << endl;
-        cerr << "    cluster min_quality max_n_allowed num_diff_allowed FASTQ_name_no_ext [tag_file_name] [start_marker] [end_marker]" << endl;
+        cerr << "    cluster min_quality max_n_allowed num_diff_allowed [sample_fraction] FASTQ_name_no_ext [tag_file_name] [start_marker] [end_marker]" << endl;
         cerr << endl;
         cerr << "    min_quality  : Minimum allowed quality. Bases with lower quality become 'N'" << endl;
         cerr << "    max_n_allowed: Highest number of allowed 'N's per sequence- others discarded" << endl;
         cerr << "    num_diff_alwd: Number of differences allowed between sequences clustered together" << endl;
+	cerr << "    sample_fraction: Fraction of the input to keep, from 0 to 1.0 as a decimal." << endl;
         cerr << "    FASTQ_name   : Name of the input file (omit .fastq)" << endl;
         cerr << "    tag_file_name: Name of the file listing tags for this input file" << endl;
         cerr << "    start_marker : Sequence to look for at end of each read" << endl;
@@ -145,68 +152,81 @@ int main(int cargs, char ** vargs)
         return -1;
     }
 
+    int carg_counter = 1;
+
     int min_quality;
-    if(isdigit(vargs[1][0])) {
-        min_quality = (int)strtol(vargs[1], NULL, 10);
+    if(isdigit(vargs[carg_counter][0])) {
+        min_quality = (int)strtol(vargs[carg_counter++], NULL, 10);
         if(min_quality < 33 && min_quality > 0)
             min_quality += 33;
     } else
-        min_quality = (int) vargs[1][0];
+        min_quality = (int) vargs[carg_counter++][0];
 
     if((0 == min_quality && errno == EINVAL) || min_quality < 33 || min_quality > 127) {
         cerr << "Error parsing minimum quality parameter." << endl;
         return -1;
     }
     
-    int max_n_allowed = (int)strtol(vargs[2], NULL, 10);
+    int max_n_allowed = (int)strtol(vargs[carg_counter++], NULL, 10);
 
     if((0 == max_n_allowed && errno == EINVAL) || max_n_allowed < 0) {
         cerr << "Error parsing max N parameter." << endl;
         return -1;
     }
     
-    int score_threshold = (int)strtol(vargs[3], NULL, 10);
+    int score_threshold = (int)strtol(vargs[carg_counter++], NULL, 10);
 
     if((0 == score_threshold && errno == EINVAL) || score_threshold < 0) {
         cerr << "Error parsing score threshold parameter." << endl;
         return -1;
     }
     
-    string tag_file_name("lala");
-    if(cargs >= 6)
-        tag_file_name = vargs[5];
+    char * convert_out = NULL;
+    double keep_fraction = strtod(vargs[carg_counter], &convert_out);
+
+cerr << (int64_t) (vargs[carg_counter] + strlen(vargs[carg_counter])) << "asdf" << (int64_t) convert_out << endl;
+    if(vargs[carg_counter] + strlen(vargs[carg_counter]) == convert_out) {
+	carg_counter++;
+cerr << "keep" << endl;
+    } else {
+	keep_fraction = 1.0;
+    }
 
     cerr << "Keeping sequences with quality of at least " << (min_quality -33) << " (ASCII " << (int) min_quality <<"='" << (char)min_quality << "') and max " << max_n_allowed << " 'N's." << endl;
 
-    map<string, set<string> > tag_file = readTagFile(tag_file_name);
+    const string fastq_name(vargs[carg_counter++]);
     istream * infile = &cin;
     ifstream infile_actual;
-
-    infile_actual.open(string(string(vargs[4]) + ".fastq").c_str());
+    infile_actual.open(string(fastq_name + ".fastq").c_str());
     infile = &infile_actual;
 
+    string tag_file_name("lala");
+    if(carg_counter < cargs)
+        tag_file_name = vargs[carg_counter++];
+
+    map<string, set<string> > tag_file = readTagFile(tag_file_name);
+
     if(infile_actual.fail()) {
-        cerr << "Error opening input file " << vargs[4] << ".fastq" << endl;
+        cerr << "Error opening input file " << fastq_name << ".fastq" << endl;
         return -1;
     }
 
-    const string fastq_name(vargs[4]);
-    if(tag_file.count(fastq_name) == 0){
+    if(tag_file.count(fastq_name) == 0) {
         cerr << "No entries for tag " << fastq_name << " in tag file. Aborting." << endl;
         return -1;
     }
     
-    const set<string> & tags = tag_file[vargs[4]];
+    const set<string> & tags = tag_file[fastq_name];
     size_t tag_length = tags.begin()->size();
     string begin_marker("GGCGCGCC");
     
-    if(cargs >= 7)
-        begin_marker = vargs[6];
+    if(carg_counter < cargs)
+        begin_marker = vargs[carg_counter++];
 
     string end_marker;
     
-    if(cargs == 8)
-        end_marker = vargs[7];
+    if(carg_counter < cargs)
+        end_marker = vargs[carg_counter++];
     else {    
         switch(tag_length) {
             case 2:
@@ -224,6 +244,7 @@ int main(int cargs, char ** vargs)
     //read in data
     size_t seen_sequences = 0;
     size_t discarded_sequences = 0;
+    size_t discarded_sequences_due_to_random = 0;
     size_t discarded_sequences_due_to_tags = 0;
     size_t discarded_sequences_due_to_markers = 0;
     size_t kept_sequences = 0;
@@ -264,6 +285,11 @@ int main(int cargs, char ** vargs)
         
         seen_sequences++;
         const string tag = seq.substr(0,tag_length);
+
+	if(frand() > keep_fraction) {
+	    discarded_sequences_due_to_random++;
+	    continue;
+	}
 
         if(0 == tags.count(tag)) {
             discarded_sequences_due_to_tags++;
@@ -309,6 +335,7 @@ int main(int cargs, char ** vargs)
         delete tag_output_files[*i];
 
     cerr << setw(8) << seen_sequences << " sequences read." << endl; 
+    cerr << setw(8) << discarded_sequences_due_to_random << " (" << 100. * discarded_sequences_due_to_random / seen_sequences << "%) discarded due to random threshold(" << keep_fraction << ")." << endl;    
     cerr << setw(8) << discarded_sequences_due_to_tags << " (" << 100. * discarded_sequences_due_to_tags / seen_sequences << "%) discarded for invalid tags." << endl;    
     cerr << setw(8) << discarded_sequences_due_to_markers << " (" << 100. * discarded_sequences_due_to_markers / seen_sequences << "%) discarded for invalid begin or end markers." << endl; 
     cerr << setw(8) << discarded_sequences << " (" << 100. * discarded_sequences / seen_sequences << "%) discarded for too many Ns" << endl;
