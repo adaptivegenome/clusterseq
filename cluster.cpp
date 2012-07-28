@@ -154,13 +154,7 @@ int main(int cargs, char ** vargs)
 
     int carg_counter = 1;
 
-    int min_quality;
-    if(isdigit(vargs[carg_counter][0])) {
-        min_quality = (int)strtol(vargs[carg_counter++], NULL, 10);
-        if(min_quality < 33 && min_quality > 0)
-            min_quality += 33;
-    } else
-        min_quality = (int) vargs[carg_counter++][0];
+    int min_quality = (int)strtol(vargs[carg_counter++], NULL, 10) + 33;
 
     if((0 == min_quality && errno == EINVAL) || min_quality < 33 || min_quality > 127) {
         cerr << "Error parsing minimum quality parameter." << endl;
@@ -184,10 +178,8 @@ int main(int cargs, char ** vargs)
     char * convert_out = NULL;
     double keep_fraction = strtod(vargs[carg_counter], &convert_out);
 
-cerr << (int64_t) (vargs[carg_counter] + strlen(vargs[carg_counter])) << "asdf" << (int64_t) convert_out << endl;
     if(vargs[carg_counter] + strlen(vargs[carg_counter]) == convert_out) {
 	carg_counter++;
-cerr << "keep" << endl;
     } else {
 	keep_fraction = 1.0;
     }
