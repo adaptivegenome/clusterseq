@@ -63,6 +63,8 @@ public:
     bool operator() (const string & i,const string & j) const { return m[i] < m[j];}
 };
 
+void merge_clusters(vector<string> filenames, int min_count_for_filters, int cluster_edit_distance_threshold);
+
 //find the most common letter for each position in the sequence. All must be the same length.
 string getConsensus(vector<string> sequences)
 {
@@ -133,55 +135,103 @@ double frand() {
 int main(int cargs, char ** vargs)
 {
     srand(time(NULL));
-    if(cargs != 5 && cargs != 6 && cargs != 7 && cargs != 8 && cargs != 9) {
+    if(cargs < 2) {
         cerr << "Filters and clusters data in a supplied FASTQ file." << endl;
         cerr << "Data is expected to be in the following format:" << endl;
         cerr << "  [tag][start_marker][data][end_marker]" << endl;
         cerr << endl;
         cerr << "Usage:" << endl;
-        cerr << "    cluster min_quality max_n_allowed num_diff_allowed [sample_fraction] FASTQ_name_no_ext [tag_file_name] [start_marker] [end_marker]" << endl;
+        cerr << "    cluster [-a min_quality max_n_allowed num_diff_allowed] [-f sample_fraction] [-k known_barcodes] [-cf min_count_for_filters] [-cd cluster_edit_distance_threshold] FASTQ_name_no_ext [tag_file_name] [start_marker] [end_marker]" << endl;
+        cerr << "\nFirst stage:\n" << endl;
+        cerr << "    min_quality    : Minimum allowed quality. Bases with lower quality become 'N' (Default 30)" << endl;
+        cerr << "    max_n_allowed  : Highest number of allowed 'N's per sequence- others discarded (Default 3)" << endl;
+        cerr << "    num_diff_alwd  : Number of differences allowed between sequences clustered together (Default 3)" << endl;
+        cerr << "    sample_fraction: Fraction of the input to keep, from 0 to 1.0 as a decimal (default 1.0)" << endl;
+        cerr << "    known_barcode  : A file with known correct barcodes to cluster to (otherwise, cluster)" << endl;
+        cerr << "    FASTQ_name     : Name of the input file (omit .fastq)" << endl;
+        cerr << "    tag_file_name  : Name of the file listing tags for this input file" << endl;
+        cerr << "    start_marker   : Sequence to look for at end of each read" << endl;
+        cerr << "    end_marker     : Sequence to look for at beginning of read after tag" << endl;
+        cerr << "\nSecond stage:\ngenerates merged_clusters.csv merged_clusters_filtered.csv merged_clusters_histogram.csv\n" << endl;
+        cerr << "    cluster_edit_distance_threshold : Maximum allowable edit distance between tag clusters to be grouped (default 3)" << endl;
+        cerr << "    min_count_for_filters           : Lines in merged_clusters_filtered.csv must have a sequence occurring at least this many times to be included in the file (default 1)" << endl;
         cerr << endl;
-        cerr << "    min_quality  : Minimum allowed quality. Bases with lower quality become 'N'" << endl;
-        cerr << "    max_n_allowed: Highest number of allowed 'N's per sequence- others discarded" << endl;
-        cerr << "    num_diff_alwd: Number of differences allowed between sequences clustered together" << endl;
-	cerr << "    sample_fraction: Fraction of the input to keep, from 0 to 1.0 as a decimal." << endl;
-        cerr << "    FASTQ_name   : Name of the input file (omit .fastq)" << endl;
-        cerr << "    tag_file_name: Name of the file listing tags for this input file" << endl;
-        cerr << "    start_marker : Sequence to look for at end of each read" << endl;
-        cerr << "    end_marker   : Sequence to look for at beginning of read after tag" << endl;
+        cerr << "Options must be specified in the above order!" << endl;
+        cerr << endl;
         return -1;
     }
 
     int carg_counter = 1;
+    
+    int min_quality = 63;
+    int max_n_allowed = 3;
+    int score_threshold = 3;
 
-    int min_quality = (int)strtol(vargs[carg_counter++], NULL, 10) + 33;
+    if(0 == strcmp("-a", vargs[carg_counter])) {
+        carg_counter++;
+        min_quality = (int)strtol(vargs[carg_counter++], NULL, 10) + 33;
 
-    if((0 == min_quality && errno == EINVAL) || min_quality < 33 || min_quality > 127) {
-        cerr << "Error parsing minimum quality parameter." << endl;
-        return -1;
+        if((0 == min_quality && errno == EINVAL) || min_quality < 33 || min_quality > 127) {
+            cerr << "Error parsing minimum quality parameter." << endl;
+            return -1;
+        }
+        
+        max_n_allowed = (int)strtol(vargs[carg_counter++], NULL, 10);
+
+        if((0 == max_n_allowed && errno == EINVAL) || max_n_allowed < 0) {
+            cerr << "Error parsing max N parameter." << endl;
+            return -1;
+        }
+        
+        score_threshold = (int)strtol(vargs[carg_counter++], NULL, 10);
+
+        if((0 == score_threshold && errno == EINVAL) || score_threshold < 0) {
+            cerr << "Error parsing score threshold parameter." << endl;
+            return -1;
+        }
     }
     
-    int max_n_allowed = (int)strtol(vargs[carg_counter++], NULL, 10);
 
-    if((0 == max_n_allowed && errno == EINVAL) || max_n_allowed < 0) {
-        cerr << "Error parsing max N parameter." << endl;
-        return -1;
+    double keep_fraction = 1.;
+    if(0 == strcmp("-f", vargs[carg_counter])) {
+        carg_counter++;
+        char * convert_out = NULL;
+        keep_fraction = strtod(vargs[carg_counter++], &convert_out);
+        carg_counter++;
     }
     
-    int score_threshold = (int)strtol(vargs[carg_counter++], NULL, 10);
+    vector<string> known_barcodes;
+    if(0 == strcmp("-k", vargs[carg_counter])) {
+        carg_counter++;
+        
+        ifstream file(vargs[carg_counter++]);
 
-    if((0 == score_threshold && errno == EINVAL) || score_threshold < 0) {
-        cerr << "Error parsing score threshold parameter." << endl;
-        return -1;
+        while(true) {
+            string line;
+            getline(file, line);
+            
+            if(!file.fail())
+                known_barcodes.push_back(line);
+            else
+                break;
+        }
+        
+        cerr << "Read " << known_barcodes.size() << " known barcodes from file." << endl;
     }
     
-    char * convert_out = NULL;
-    double keep_fraction = strtod(vargs[carg_counter], &convert_out);
-
-    if(vargs[carg_counter] + strlen(vargs[carg_counter]) == convert_out) {
-	carg_counter++;
-    } else {
-	keep_fraction = 1.0;
+    //stage two parameters:
+    int min_count_for_filters = 1;
+    int cluster_edit_distance_threshold = 3;
+    if(0 == strcmp("-cf", vargs[carg_counter])) {
+        carg_counter++;
+        char * mc = NULL;
+        min_count_for_filters = strtol(vargs[carg_counter++], &mc,10);
+    }
+    
+    if(0 == strcmp("-cd", vargs[carg_counter])) {
+        carg_counter++;
+        char * mc = NULL;
+        cluster_edit_distance_threshold = strtol(vargs[carg_counter++], &mc,10);
     }
 
     cerr << "Keeping sequences with quality of at least " << (min_quality -33) << " (ASCII " << (int) min_quality <<"='" << (char)min_quality << "') and max " << max_n_allowed << " 'N's." << endl;
@@ -341,6 +391,8 @@ int main(int cargs, char ** vargs)
         cerr << "Check your begin and end markers, tags, and data." << endl;
         
     }
+    
+    vector <string> merge_cluster_filenames;
 
     for(set<string>::iterator tag_it = tags.begin(); tag_it != tags.end(); tag_it++) {
         vector<string> & sequences = *sequences_map[*tag_it];
@@ -374,6 +426,7 @@ int main(int cargs, char ** vargs)
         
         //step three - perform clustering
         multimap<string, string> cluster_members;
+        vector<string> & cluster_centers = known_barcodes.empty() ? sorted_sequences : known_barcodes;
 
 #ifdef _OPENMP
 #pragma omp parallel shared(sorted_sequences,score_threshold,cluster_members) default(none)
@@ -382,7 +435,7 @@ int main(int cargs, char ** vargs)
 #pragma omp for
             for(int i = 0; i < (int)sorted_sequences.size(); i++) {
                 const string & sequence = sorted_sequences[i];
-                for(vector<string>::const_reverse_iterator j = sorted_sequences.rbegin(); j != sorted_sequences.rend(); j++) {
+                for(vector<string>::const_reverse_iterator j = cluster_centers.rbegin(); j != cluster_centers.rend(); j++) {
                     if(cluster_distance(sequence, *j, score_threshold) <= score_threshold) {
                         cluster_members_local.insert(pair<string, string>(*j,sequence));
                         break;
@@ -435,13 +488,249 @@ int main(int cargs, char ** vargs)
             consensuses[cluster_name] = getConsensus(consensus_in);
         }
         
-        ofstream outfile((fastq_name + "." + tag + "_clusters.csv").c_str());
+        merge_cluster_filenames.push_back(fastq_name + "." + tag + "_clusters.csv");
+        ofstream outfile(merge_cluster_filenames.back().c_str());
         
         //output consensuses
         for(map<string, string>::const_iterator i = consensuses.begin(); i != consensuses.end(); i++)
             outfile << i->second << "," << cluster_count[i->first] << endl;
         cerr << setw(8) << consensuses.size() << " sequences written." << endl;
     }
+    
+    merge_clusters(merge_cluster_filenames, min_count_for_filters, cluster_edit_distance_threshold);
 
     return 0;
+}
+
+class value_sorter : less<pair<string, int> > {
+public:
+    bool operator() (const pair<string, int> & a, const pair <string,int> & b) {
+        return a < b;
+    }
+};
+
+string cluster_name(const string & a, const string & b) {
+    assert(a.size() == b.size());
+    string n = a;
+    
+    for(size_t i = 0; i < a.size(); i++)
+        if(a[i] != b[i])
+            n[i] = 'N';
+    return n;
+}
+
+void merge_clusters(vector<string> filenames, int min_count_for_filters, int cluster_edit_distance_threshold) {
+    vector<map<string, int> > file_data(filenames.size());
+    set<string> keys;
+    int ct = 0;
+    double histogram_bin_growth_factor = 1.4;
+    
+    //load data from files
+    for(vector<string>::const_iterator filename = filenames.begin(); filename != filenames.end(); filename++) {
+        ifstream file(filename->c_str());
+        
+        string line;
+        while(true) {
+            string name;
+            int count;
+            getline(file, line);
+            
+            istringstream ss( line );
+            getline( ss, name, ',' );
+            ss >> count;
+            
+            if(!file.good() || ss.fail())
+                break;
+            
+            file_data[ct][name] = count;
+            file_data[ct].insert(pair<string, int>(name, count));
+            keys.insert(name);
+        }
+        ct++;
+    }
+    
+    //identify keys to be remapped
+    map<string,int> counts;
+    vector<pair<string,int> > sorted_keys;
+    for(set<string>::const_iterator key = keys.begin(); key != keys.end(); key++) {
+        counts[*key] = 0;
+        for(vector<map<string,int> >::iterator data = file_data.begin(); data != file_data.end(); data++) {
+            if(data->count(*key))
+                counts[*key] += (*data)[*key];
+        }
+        sorted_keys.push_back(std::pair<string, int>(*key, counts[*key]));
+    }
+    
+    map<string, string> remapped_keys;
+    int attached = 0;
+    
+    value_sorter vs;
+    sort(sorted_keys.begin(), sorted_keys.end(), vs);
+    
+    for(vector<pair<string,int> >::const_reverse_iterator i1 = sorted_keys.rbegin(); i1 != sorted_keys.rend(); i1++) {
+        for(vector<pair<string,int> > ::const_iterator i2 = sorted_keys.begin(); i2 != sorted_keys.end(); i2++) {
+            if(i1->first == i2->first)
+                break;
+            if(cluster_distance(i1->first, i2->first, cluster_edit_distance_threshold+2) <= cluster_edit_distance_threshold) {
+                remapped_keys[i2->first] = i1->first;
+                if(!remapped_keys.count(i1->first))
+                    remapped_keys[i1->first] = i1->first;
+                //cerr << "Attaching " << i2->first << " to cluster " << i1->first << endl;
+                attached += 1;
+            }
+        }
+    }
+    
+    //remove keys mapped to a cluster node that doesn't exist any more
+    set<string> keys_seen_once, keys_seen_twice, keys_difference;
+    
+    for(map<string, string>::const_iterator i = remapped_keys.begin(); i != remapped_keys.end(); i++) {
+        if(!keys_seen_once.count(i->second)) {
+            keys_seen_once.insert(i->second);
+            continue;
+        }
+        if(!keys_seen_twice.count(i->second))
+            keys_seen_twice.insert(i->second);
+    }
+    
+    
+    set_difference(keys_seen_once.begin(), keys_seen_once.end(), keys_seen_twice.begin(), keys_seen_twice.end(), inserter(keys_difference, keys_difference.end()));
+    int removed = 0;
+    vector<string> to_remove;
+    for(map<string, string>::const_iterator i = remapped_keys.begin(); i != remapped_keys.end(); i++) {
+        if(!keys_difference.count(i->second)) {
+            //cerr << "Removing orphan cluster mapping " << i->first << " to " << i->second << endl;
+            //remapped_keys.erase(i->first);
+            to_remove.push_back(i->first);
+            removed++;
+        }
+    }
+    for(vector<string>::const_iterator i = to_remove.begin(); i != to_remove.end(); i++)
+        remapped_keys.erase(*i);
+    
+    cerr << "Clustering stage 2: Attached " << attached << " sequences to clusters" << endl;
+    
+    // generate new names for cluster centers
+    map<string, string> remapped_names;
+    for(map<string, string>::const_iterator i = remapped_keys.begin(); i != remapped_keys.end(); i++) {
+        if(remapped_names.count(i->second))
+            remapped_names[i->second] = cluster_name(i->first, remapped_names[i->second]);
+        else
+            remapped_names[i->second] = i->second;
+    }
+    
+    for(map<string, string>::const_iterator i = remapped_keys.begin(); i != remapped_keys.end(); i++)
+        cerr << "Renaming cluster " << i->first << " as " << i->second << endl;
+    
+    //now perform merging of files
+    vector<map<string, int> > new_file_data;
+    
+    for(vector<map<string,int> >::iterator data = file_data.begin(); data != file_data.end(); data++) {
+        new_file_data.push_back(map<string, int>());
+        map<string,int> & new_data = new_file_data.back();
+        
+        for(set<string>::const_iterator key = keys.begin(); key != keys.end(); key++) {
+            if(data->count(*key)) {
+                if(remapped_keys.count(*key)) {
+                    string & cluster_key = remapped_keys[*key];
+                    string & cluster_name = remapped_names[cluster_key];
+                    if(new_data.count(cluster_name))
+                        new_data[cluster_name] += (*data)[*key];
+                    else
+                        new_data[cluster_name] = (*data)[*key];
+                } else
+                    new_data[*key] = (*data)[*key];
+            }
+        }
+    }
+    
+    file_data = new_file_data;
+    
+    //generate the new keys list after clustering
+    keys.clear();
+    for(vector<map<string,int> >::iterator data = file_data.begin(); data != file_data.end(); data++) {
+        for(map<string, int>::const_iterator i = data->begin(); i != data->end(); i++)
+            keys.insert(i->first);
+    }
+    
+    //generate merged counts output file
+    {
+        stringstream header;
+        header << "sequence";
+        for(vector<string>::const_iterator i = filenames.begin(); i != filenames.end(); i++)
+            header << "," << *i;
+        ofstream outfile("merged_clusters.csv");
+        ofstream outfile_filtered("merged_clusters_filtered.csv");
+        outfile << header.str();
+        outfile_filtered << header.str();
+        
+        for(set<string>::const_iterator key = keys.begin(); key != keys.end(); key++) {
+            bool keep = false;
+            stringstream line;
+            line << *key;
+            for(vector<map<string,int> >::iterator data = file_data.begin(); data != file_data.end(); data++) {
+                if(data->count(*key)) {
+                    line << "," << (*data)[*key];
+                    
+                    if((*data)[*key] > min_count_for_filters)
+                        keep = true;
+                } else {
+                    line << ",0";
+                }
+            }
+            outfile << line.str() << "\n";
+
+            if(keep)
+                outfile_filtered << line.str() << "\n";
+        }
+        outfile_filtered.close();
+    }
+    
+    //generate histogram
+    {
+        //generate list of sizes (counts for each key)
+        vector<int> sizes;
+        for(set<string>::const_iterator key = keys.begin(); key != keys.end(); key++) {
+            int ct = 0;
+            
+            for(vector<map<string,int> >::iterator data = file_data.begin(); data != file_data.end(); data++) {
+                if(data->count(*key))
+                    ct += (*data)[*key];
+            }
+            sizes.push_back(ct);
+        }
+        
+        sort(sizes.begin(), sizes.end());
+        
+        ofstream outfile;
+        outfile.open("merged_clusters_histogram.csv");
+        double bin_size(1.0);
+        
+        //generate bins for histogram
+        vector<int> bins;
+        bins.push_back(1);
+        while(bin_size < sizes[sizes.size() - 1]) {
+            double new_bin_size = bin_size * histogram_bin_growth_factor;
+            if(int(bin_size) != int(new_bin_size))
+                bins.push_back(int(bin_size));
+            bin_size = new_bin_size;
+        }
+        bins.push_back(int(bin_size));
+        
+        int bin_ct = 0, s = 0;
+        
+        //generate actual histogram
+        for(size_t i = 0; i < sizes.size(); i++) {
+            while(sizes[i] > bins[bin_ct + 1]) {
+                if(bins[bin_ct] != bins[bin_ct + 1]) {
+                    outfile << bins[bin_ct] << "-" << bins[bin_ct + 1] << "," << s << "\n";
+                    s = 0;
+                }
+                
+                bin_ct += 1;
+            }
+            s += sizes[i];
+        }
+        outfile << bins[bin_ct] << "-" << bins[bin_ct + 1] << "," << s << endl;
+    }
 }
