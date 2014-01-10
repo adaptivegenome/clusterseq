@@ -1,6 +1,8 @@
 ##Purpose
 ClusterSeq is a tool used to analyze the distribution of barcodes across multiple tagged samples.
 
+This repository also includes cloning simulation code; see details in [cloning_simulation/README.md](cloning_simulation/README.md)
+
 ##Description
 
 ClusterSeq consists of two separate tools- an executable for filtering and clustering of barcode sequences, and a python script for comparing sequences 
@@ -84,6 +86,6 @@ The cluster comparison tool simply needs a list files to merge:
 </pre>
 
 ##Author contact
-Lee Baker, VBI: leecb@vt.edu
+Lee Baker: lee@leecbaker.com
 
 David Mittelman, VBI: david.mittelman@vt.edu

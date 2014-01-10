@@ -1,0 +1,3 @@
+To compile, use the following command:
+
+g++ -fopenmp cluster.cpp -o cluster -Wall -O3
