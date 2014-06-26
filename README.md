@@ -67,6 +67,10 @@ Without OpenMP:
 g++ cluster.cpp -o cluster -O3
 </pre>
 
+After compiling, you can run some basic tests:
+cd test
+./run_tests.sh
+
 ##Running
 Usage is:
 <pre>

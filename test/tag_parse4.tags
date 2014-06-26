@@ -1,0 +1,6 @@
+tag_parse	ACTG	some text after a tab
+	CAGT some text after a space
+	TGAC
+	GTCA	hmm....
+another_file ACCC
+	GGGG

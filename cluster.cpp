@@ -116,9 +116,12 @@ map<string, set<string> > readTagFile(string filename = "lala")
         if(file.eof() || file.fail())
             break;
 
-        if(line[0] != '\t')
+        if(line[0] != '\t' && line[0] != ' ')
             line_str >> last_name;
         line_str >> tag;
+
+        if(line_str.fail())
+            break;
         
         tags[last_name].insert(tag);
     }
@@ -254,12 +257,20 @@ int main(int cargs, char ** vargs)
     }
 
     if(tag_file.count(fastq_name) == 0) {
-        cerr << "No entries for tag " << fastq_name << " in tag file. Aborting." << endl;
+        cerr << "No entries for tag " << fastq_name << " in tag file " << tag_file_name << ". Aborting." << endl;
         return -1;
     }
     
     const set<string> & tags = tag_file[fastq_name];
     size_t tag_length = tags.begin()->size();
+    for(std::set<std::string>::const_iterator tag_it = tags.begin(); tag_it != tags.end(); tag_it++) {
+        if(tags.begin()->size() != tag_it->size()) {
+            std::cerr << "Tags '" << *(tags.begin()) << "' and '" << *tag_it << "' have different lengths. Aborting." << std::endl;
+            return -1;
+        }
+    }
+
+    cerr << tag_file.size() << " FASTQ records loaded from tag file " << tag_file_name << "; using " << tags.size() << " tags for this FASTQ." << endl;
     string begin_marker("GGCGCGCC");
     
     if(carg_counter < cargs)

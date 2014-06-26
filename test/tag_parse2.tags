@@ -1,0 +1,4 @@
+tag_parse	ACTG
+tag_parse	CAGT
+tag_parse	TGAC
+tag_parse	GTCA
