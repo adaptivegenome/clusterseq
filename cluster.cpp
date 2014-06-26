@@ -442,7 +442,7 @@ int main(int cargs, char ** vargs)
         vector<string> & cluster_centers = known_barcodes.empty() ? sorted_sequences : known_barcodes;
 
 #ifdef _OPENMP
-#pragma omp parallel shared(sorted_sequences,score_threshold,cluster_members) default(none)
+#pragma omp parallel shared(sorted_sequences,score_threshold,cluster_members,cluster_centers) default(none)
         {
             multimap<string, string> cluster_members_local;
 #pragma omp for
