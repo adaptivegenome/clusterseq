@@ -38,6 +38,8 @@
 
 #ifdef _OPENMP
 #include <omp.h>
+#else
+#warning "Compiling without OpenMP. Enabling OpenMP will increase performance (add -fopenmp to your command line)."
 #endif
 
 using namespace std;
