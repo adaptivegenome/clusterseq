@@ -40,11 +40,28 @@ function check_tag_parse {
 	rm cluster_output.txt
 }
 
+function check_tag_parse_fail {
+	TAGFILE=$1
+
+	echo "Verifying failure with defective tagfile ${TAGFILE}"
+
+	${CLUSTER} tag_parse ${TAGFILE} AAAA GGGG 2> cluster_output.txt
+	if [[ $? -eq 0 ]];
+	then
+		let "FAILURES=FAILURES+1"
+		echo "FAILURE: expected failure case didn't fail."
+	fi
+
+	rm cluster_output.txt
+}
+
 #first, test to ensure that tag files are being parsed
 check_tag_parse tag_parse.tags
 check_tag_parse tag_parse2.tags
 check_tag_parse tag_parse3.tags
 check_tag_parse tag_parse4.tags
+
+check_tag_parse_fail tag_parse_length_mismatch.tags
 
 if [[ ${FAILURES} -ne 0 ]];
 then
